@@ -116,7 +116,7 @@ Os periféricos são classificados pelo **alvo da informação** e pela **nature
 
 **Dois padrões de operação:**
 
-- **Fluxo de caracteres:** usado por dispositivos humanos (ex: teclado envia códigos ASCII por pressionamento de tecla).
+- **Fluxo de caracteres:** usado por dispositivos humanos (ex: teclado envia códigos IRA por pressionamento de tecla).
 - **Transdução em blocos:** usada por dispositivos de máquina (ex: disco lê e grava setores inteiros, exigindo buffers e ECC).
 
 <!-- end_slide -->
@@ -186,6 +186,8 @@ Ao receber a requisição, a interrupção é tratado por uma rotina específica
 
 Finalizando a transação com o módulo E/S, a CPU volta a tarefa original sem perda de contexto
 
+<!-- end_slide -->
+
 ```
 +-------------------------------------------------------------+
 |                     BARRAMENTO DE SISTEMA                   |
@@ -218,50 +220,19 @@ Finalizando a transação com o módulo E/S, a CPU volta a tarefa original sem p
 Como determinar qual módulo gerou a requisição de interrupção?
 ========================================
 
-Com muitos periféricos compartilhando a capacidade de interromper a CPU, como saber qual módulo gerou a requisição de interrupção?
-
-**1. Múltiplas linhas de interrupção físicas**
-  - Abordagem direta, fornece linhas físicas dedicadas e independentes no barramento entre cada módulo E/S e a CPU
-  - **Vantagem:**
-    - Extremamente rápida
-  - **Desvantagem:**
-    - Inviável para sistemas complexos devido à limitação física de pinagem do encapsulamento do processador
-
-**2. Varredura de software**
+**1. Varredura de software**
   - Após a interrupção, a CPU é desviada para uma rotina geral de serviço que, primeiro, tem como objetivo identificar qual módulo E/S foi o autor da interrupção
   - É realizada uma varredura em cada módulo E/S para encontrar em seus registradores de estado o bit que indica a autoria da interrupção
-  - **Vantagem:**
-    - Barata em termos de hardware
-  - **Desvantagem:**
-    - Latência do sistema mais alta pelo tempo gasto interrogando cada módulo
+      
+**2. Múltiplas linhas de interrupção físicas**
+  - Abordagem direta, fornece linhas físicas dedicadas e independentes no barramento entre cada módulo E/S e a CPU
 
-<!-- end_slide -->
-
-Como determinar qual módulo gerou a requisição de interrupção?
-========================================
-
-**3. Encadeamento de margarida (Daisy Chain)**
-
-  1. Um ou mais módulos solicitam uma interrupção à CPU.
-  2. Quando a CPU aceita a interrupção, ela envia um sinal de reconhecimento (`Interrupt Acknowledge`), que percorre os módulos em série.
-  3. O primeiro módulo que possui uma interrupção pendente intercepta esse sinal, impedindo que ele continue para os demais módulos.
-  4. Em seguida, esse módulo coloca seu identificador (vetor de interrupção) no barramento de dados, permitindo que a CPU identifique qual dispositivo solicitou a interrupção e execute a rotina de tratamento correspondente.
-  - **Vantagem:**
-    - Implementação simples e de baixo custo, prioridade entre os dispositivos é definida pela ordem física
-  - **Desvantagem:**
-    - A prioridade entre os dispositivos é fixa, dispositivos mais próximos da CPU sempre têm precedência
-
-**4. Arbitragem de Barramento**
-
-  - Os dispositivos de E/S solicitam acesso ao barramento através do **árbitro de barramento**
-  - A prioridade de acesso ao barramento é definida por ele
-  - O dispositivo escolhido pelo árbitro recebe o nome de ***bus master***
-  - Esse dispositivo coloca seu identificador nas linhas de dados e a CPU executa a rotina de tratamento correspondente
-  - **Vantagem:**
-    - Maior flexibilidade e desempenho, pois a prioridade pode ser configurável ou dinâmica, evitando que um dispositivo fique permanentemente em desvantagem.
-  - **Desvantagem:**
-    - Hardware mais complexo e mais caro, devido à necessidade de um mecanismo dedicado para arbitrar o acesso ao barramento.
-
+**3. Daisy Chain**
+  - Um ou mais módulos solicitam uma interrupção à CPU.
+  - Quando a CPU aceita a interrupção, ela envia um sinal de reconhecimento (`Interrupt Acknowledge`), que percorre os módulos em série.
+  - O primeiro módulo que possui uma interrupção pendente intercepta esse sinal, impedindo que ele continue para os demais módulos.
+  - Em seguida, esse módulo coloca seu identificador (vetor de interrupção) no barramento de dados, permitindo que a CPU identifique qual dispositivo solicitou a interrupção e execute a rotina de tratamento correspondente.
+      
 <!-- end_slide -->
 
 Evolução de PIC para APIC e MSI-X
@@ -305,6 +276,9 @@ Elimina a desvantagem inerente à E/S controlada por interrupções em fluxos de
 
 Funciona como um **coprocessador** especialista, assumindo o controle temporário dos barramentos do sistema para transferir blocos de dados diretamente entre os periféricos e a memória física através da técnica de roubo de ciclos (***cycle stealing***)
 
+<!-- end_slide -->
+
+
 ```
                             SISTEMA MULTIPROCESSADOR
 +-----------------------------------------------------------------------------+
@@ -335,7 +309,6 @@ Funciona como um **coprocessador** especialista, assumindo o controle temporári
 |                        Dispositivo Periférico PCIe                          |
 +-----------------------------------------------------------------------------+
 ```
-
 <!-- end_slide -->
 
 DMA Scatter-Gather
@@ -348,6 +321,7 @@ Na estrutura ***Scatter-Gather*** DMA, surgem os anéis de descritores alocados 
 Cada descritor aponta para um endereço não contíguo e especifica a quantidade de dados
 
 O módulo de DMA executa varreduras sequenciais nos descritores físicos, encadeando a transferência de múltiplas regiões de RAM não contíguas
+<!-- end_slide -->
 
 ```
 +----------------------------------------------+
@@ -372,22 +346,15 @@ O módulo de DMA executa varreduras sequenciais nos descritores físicos, encade
 
 <!-- end_slide -->
 
-Mecânica de tradução IOMMU
+Mecânica de Tradução IOMMU
 ========================================
 
-Adicionando uma camada de segurança, ***IOMMU*** atua como uma barreira lógica inserida na raiz do barramento PCIe. Sob esse modelo, os periféricos passam a referenciar os endereços em um espaço virtual específico de E/S chamado de Endereço Virtual de E/S (I/O *Virtual Address* - IOVA)
+- Funcionamento: Isola o barramento PCIe traduzindo endereços virtuais (IOVA) em físicos via tabelas de páginas de E/S.
+- Latência: Mitigada pelo uso de caches internos de tradução (IOTLBs).
 
-O IOMMU intercepta transações do ciclo PCIe e realiza a tradução para o endereço físico correspondente usando uma tabela de páginas de E/S
-
-A segurança adicional impõe custo de latência de barramento, para amenizar esse custo as IOMMUs utilizam caches internos de tradução conhecidos como IOTLBs (I/O Translation Lookaside Buffers)
-
-Sistemas operacionais de alto rendimento utilizam modos otimizados de controle
-- **Modo Pass-Through (*intel_iommu=on iommu=pt*)**
-  - Ignora a tradução de dispositivos que operam nativamente no host
-- **Modo Diferido (*Lazy/Deferred Mode*)**
-  - Invalida o cache em lote em vez de realizar chamadas de invalidação a cada desalocação de página
-
-![alt text](./images/image.png)
+# Otimizações de Alto Desempenho
+- Pass-Through (iommu=pt): Ignora a tradução para dispositivos nativos do host.
+- Modo Diferido (Lazy): Invalida o cache em lote (batching), reduzindo o overhead por desalocação.
 
 <!-- end_slide -->
 
@@ -409,48 +376,43 @@ Acesso Direto à Cache (DCA)
 
 **Solução:** O DCA soluciona essa restrição ao permitir que os pacotes de dados de E/S provenientes de dispositivos PCIe sejam injetados diretamente na cache de último nível (L3)
 
-![alt text](./images/image_2.png)
-
 <!-- end_slide -->
 
 Canais e E/S e programas de canal
 ========================================
 
-# Canais de E/S
-- Operam como um processadores copartícipe autônomos e de propósito específico, dotados de seus próprios conjunto de instruções de manipulação de barramento especializado para operações de E/S
-- Execuções de rotinas de E/S de baixo nível são transferidas para o canal
-- CPU passa a tratar apenas a inicialização do canal e a indicação da localização de um **Programa de Canal** para o mesmo
+# Canais de E/S & Offloading
+- **Coprodessador Autônomo:** Processador de propósito específico com instruções próprias de E/S.
+- **Offloading:** CPU delega rotinas físicas e de baixo nível; apenas inicializa o canal e aponta o programa de E/S.
 
-# Programas de Canal e Offloading
-## ***Offloading***
-- Transferência de responsabilidade de execução de rotinas de E/S da CPU para o canal
-- Com os canais, a CPU deixa de interagir de forma direta com sinais de controles mecânicos, trilhas físicas de disco ou barramentos de rede
+# Programas de Canal
+- **Definição:** Sequência lógica de Palavras de Comando de Canal (**CCWs**).
+- **Função:** Instruem o hardware do canal sobre leitura/escrita, alocação na memória e correção de falhas.
 
-## Programas de Canal
-- Construído por uma sequência lógica de Palavras de Comando de Canal (CCWs)
-- As CCWs instruem o hardware do canal sobre quais setores ler, quais blocos varrer, onde alocar os dados de recebimento na memória principal e quais ações corretivas de hardware tomar em caso de falhas
-- Organizados em duas grandes classes:
-  - **Canal seletor:** Dedica-se de forma exclusiva e ininterrupta à transferência de dados com um único dispositivo de alta velocidade a cada vez, controlando um pequeno cluster de controladores.
-  - **Canal multiplexador:** Permite que múltiplos dispositivos de baixa velocidade compartilhem o mesmo canal, alternando entre eles de forma rápida e eficiente.
-    - **Multiplexador de Byte:** Para periféricos lentos
-    - **Multiplexador de Bloco:** intercalando registros e blocos de dados completos em transações síncronas rápidas de múltiplos periféricos rápidos de armazenamento
+# Classes de Canais
+- **Canal Seletor:** Dedicação exclusiva a um único dispositivo de alta velocidade por vez.
+- **Canal Multiplexador:** Compartilhado por múltiplos dispositivos.
+  - *Multiplexador de Byte:* Alternância rápida para periféricos lentos.
+  - *Multiplexador de Bloco:* Intercala blocos de dados de múltiplos periféricos rápidos.
 
 <!-- end_slide -->
 
 Padrões de interconexão externa e tecidos de rede de alta velocidade
 ========================================
 
-# Barramentos de interconexão externa
-- Estabelecem as interfaces físicas, elétricas e de sinalização de dados que interligam os controladores internos aos dispositivos periféricos e equipamentos remotos.
-- Evolução de barramentos paralelos para barramentos seriais
-  - **Barramentos paralelos:**
-    - Vários bits transmitidos simultaneamente.
-    - Limitados por interferência, capacitância e sincronização.
-    - Adequados apenas para curtas distâncias.
-  - **Barramentos seriais:**
-    - Poucos fios operando em alta frequência.
-    - Comunicação baseada em pacotes.
-    - Maior velocidade, confiabilidade e escalabilidade (PCIe, USB, SATA).
+# Barramentos de Interconexão Externa
+- **Função:** Interfaces físicas e elétricas entre controladores internos e periféricos.
+- **Evolução:** Transição histórica do modelo paralelo para o modelo serial.
+
+# Paralelo vs. Serial
+- **Barramentos Paralelos:**
+  - Transmissão simultânea de múltiplos bits.
+  - Limitados por interferência, capacitância e dessincronização (curtas distâncias).
+- **Barramentos Seriais:**
+  - Poucas vias de dados operando em alta frequência.
+  - Comunicação baseada em pacotes.
+  - Maior velocidade, escalabilidade e confiabilidade (Ex: PCIe, USB, SATA).
+<!-- end_slide -->
 
 ```
                      EVOLUÇÃO DOS TECIDOS DE CONECTIVIDADE
@@ -475,23 +437,6 @@ Padrões de interconexão externa e tecidos de rede de alta velocidade
 
 <!-- end_slide -->
 
-***Compute Express Link (CXL)*** protocols
-========================================
-
-- Opera de forma paralela sobre a infraestrutura física e analógica de links diferenciais do PCIe Gen 5 e Gen 6
-
-- Possui três sub-protocolos dinamicamente multiplexados em flits (unidades de controle de fluxo de dados de alta eficiência elétrico-lógica):
-  - **CXL.io** → Transações de controle PCIe padrão, compatível com dispositivos PCIe existentes
-  - **CXL.cache** → Permite que aceleradores acessem a cache L3 da CPU de forma coerente, compartilhando dados com a CPU sem cópias redundantes
-  - **CXL.mem** → Permite que a CPU acesse a memória local do acelerador, expandindo o espaço de memória do sistema e permitindo o uso de memória não volátil como RAM
-
-- Classifica os dispositivos em 3 categorias:
-  - **Dispositivos tipo 1 (SmartNICs)**
-  - **Dispositivos tipo 2 (GPUs e FPGAs de alto desempenho)**
-  - **Dispositivos tipo 3 (expansores de memória)**
-
-<!-- end_slide -->
-
 Padrões de conectividade de uso geral e periféricos de consumo
 ========================================
 
@@ -513,6 +458,9 @@ Estrutura de E/S de alto desempenho
 - Arquitetura E/S dedicada projetada para eliminar por completo penalidades de processamento
 - Subsistemas de canais dedicados (CSS - ***Channel Subsytem***)
 - Descarregamento de tarefas para Processadores de Assistência de Sistema (SAP) especializados
+
+<!-- end_slide -->
+
 
 ```
                 IBM zENTERPRISE EC12 I/O SYSTEM
